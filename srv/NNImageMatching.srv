@@ -1,0 +1,5 @@
+sensor_msgs/Image image_map
+sensor_msgs/Image image_camera
+---
+float32[] differences
+float32[] histogram
