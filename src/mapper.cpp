@@ -52,7 +52,6 @@ private:
     float distance_travelled;
 
     /* map image and path profile */
-    string map_name;
     vector<Mat> images_map;
     vector<float> images_dist;
     vector<float> path_dist;
@@ -65,6 +64,9 @@ private:
     geometry_msgs::Twist twist;
     int image_count;
     int event_count;
+
+public:
+    string map_name;
 
 public:
 
@@ -82,16 +84,13 @@ public:
         joy_sub = nh->subscribe<sensor_msgs::Joy>(JOY_TOPIC, 1, boost::bind(&Mapper::joyCallBack, this, _1));
         image_sub = img_trans.subscribe(IMAGE_TOPIC, 1, boost::bind(&Mapper::imageCallBack, this, _1));
         vel_cmd_pub = nh->advertise<geometry_msgs::Twist>(VEL_CMD_TOPIC, 1);
-
-        // execute the main mapping function
-        mapping();
     }
 
     void distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg);
     void joyCallBack(const sensor_msgs::Joy::ConstPtr &joy);
     void imageCallBack(const sensor_msgs::ImageConstPtr &img_msg);
-    // void actionCallBack(const vtr_lite::mapperGoalConstPtr &goal, ActionServer *serv);
     void mapping();
+    void saveMap();
     
     template <class T>
     T f_min_max (T x, T min, T max) {return fmin(fmax(x, min), max);}
@@ -157,8 +156,6 @@ void Mapper::mapping()
         ROS_ERROR("Failed to call service SetDistance provided by odometry_monitor node!");
 
     // map info
-    map_name = "tmp";
-
 	images_map.clear();
     images_dist.clear();
     path_dist.clear();
@@ -169,6 +166,7 @@ void Mapper::mapping()
     state = MAPPING;
     image_count = event_count = 0;
 
+    ros::Rate rate(100); 
     while (ros::ok())
     {
         if(state == MAPPING)
@@ -203,6 +201,7 @@ void Mapper::mapping()
 					last_event_time = ros::Time::now();
 				}
 				else {
+                    ROS_ERROR("linear_vel %f", linear_vel);
 					ROS_WARN("Robot is not moving.");
 				}
 			}
@@ -213,40 +212,44 @@ void Mapper::mapping()
 		if(state == COMPLETED)
 		{
 			ROS_INFO("Map complete, flushing maps.");
-
-			/*add last data to the map*/
-			for(int i = 0; i < images_dist.size(); i++)
-                cout << images_dist[i] << " ";
-
-            cout << endl;
-
-			/*and flush it to the disk*/
-			for (int i = 0;i<images_dist.size();i++){
-				sprintf(name,"%s/%s_%.3f.yaml", FOLDER.c_str(),map_name.c_str(),images_dist[i]);
-				ROS_INFO("Saving map to %s",name);
-				FileStorage fs(name,FileStorage::WRITE);
-				write(fs, "Image", images_map[i]);
-				fs.release();
-			}
-
-			/*save the path profile as well*/
-			sprintf(name,"%s/%s.yaml", FOLDER.c_str(),map_name.c_str());
-			ROS_INFO("Saving path profile to %s", name);
-			FileStorage pfs(name, FileStorage::WRITE);
-			write(pfs, "distance", path_dist);
-			write(pfs, "forward_vel", path_forward_vel);
-			write(pfs, "angular_vel", path_angular_vel);
-
-			pfs.release();
-			
+            saveMap();
             return;
 		}
 
+        rate.sleep();
         ros::spinOnce();
-		
     }
 }
 
+void Mapper::saveMap()
+{
+    /*save the images map as well*/
+    ofstream outfile;
+    string image_file_name = FOLDER + "/" + map_name + ".bin";
+    outfile.open(image_file_name, ios::binary);
+    ROS_INFO("Saving images map to %s", image_file_name.c_str());
+
+    for (int i = 0; i < images_map.size(); i++)
+    {
+        for (int r = 0; r < images_map[i].rows; r++)
+            outfile.write(reinterpret_cast<const char*>(images_map[i].ptr(r)), images_map[i].cols*images_map[i].elemSize());
+    }
+    outfile.close();
+
+    /*save the path profile as well*/
+	string path_file_name = FOLDER + "/" + map_name + ".ymal";
+    ROS_INFO("Saving path profile to %s", path_file_name.c_str());
+	FileStorage pfs(path_file_name.c_str(), FileStorage::WRITE);
+    write(pfs, "image_size", vector<int>({images_map[0].rows, images_map[0].cols}));
+    write(pfs, "image_distance", images_dist);
+	write(pfs, "event_distance", path_dist);
+	write(pfs, "forward_vel", path_forward_vel);
+    write(pfs, "angular_vel", path_angular_vel);
+
+    ROS_INFO("Done!");
+
+    pfs.release();
+}
 
 int main(int argc, char** argv)
 {
@@ -256,9 +259,11 @@ int main(int argc, char** argv)
 
     ros::NodeHandle nh;
     Mapper om = Mapper(&nh);
+    if(argc > 0)    om.map_name = argv[1];
+    else    om.map_name = "tmp";
+    om.mapping();
 
     ROS_INFO("Mapping completed.");
-
     return 0;
 }
 

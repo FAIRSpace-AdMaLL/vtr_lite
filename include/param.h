@@ -43,7 +43,6 @@ public:
     int ROT_ACC_BUTTON; // in the acceleration mode,  the robot will apply the 2x max angular velocity
     int ROT_MAX_BUTTON; // in the acceleration Max mode, the robot will ignore the linear velocity (for rotation within origin)
 
-
     /* ROS Topics / Server */
     string IMAGE_TOPIC;
     string ODOM_TOPIC;
@@ -68,10 +67,10 @@ public:
         nh.param<string>("map_folder", FOLDER, "/home/jaguar/maps");
 
         // robot speed limits
-        nh.param<float>("max_angular_velocity", MAX_ANGULAR_VEL, 1.5);
+        nh.param<float>("max_angular_velocity", MAX_ANGULAR_VEL, 2.0);
         nh.param<float>("min_linear_velocity", MIN_LINEAR_VEL, 0.05);
         nh.param<float>("max_linear_velocity", MAX_LINEAR_VEL, 3.0);
-        nh.param<float>("max_linear_acceleration", MAX_LINEAR_ACC, 0.2);
+        nh.param<float>("max_linear_acceleration", MAX_LINEAR_ACC, 0.1);
 
         nh.param<std::string>("topo_vtr/image_topic", IMAGE_TOPIC, "/zed2/zed_node/rgb/image_rect_color");
         nh.param<std::string>("topo_vtr/odom_topic", ODOM_TOPIC, "/encoder_odom");
