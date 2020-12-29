@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(topo_vtr)
+project(vtr_lite)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -16,6 +16,8 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   std_msgs
+  actionlib_msgs
+  actionlib
 )
 
 ## System dependencies are found with CMake's conventions
@@ -65,11 +67,9 @@ add_service_files(
 )
 
 ## Generate actions in the 'action' folder
-# add_action_files(
-#   FILES
-#   Action1.action
-#   Action2.action
-# )
+add_action_files(
+   FILES
+)
 
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
@@ -111,7 +111,7 @@ generate_messages(
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES topo_vtr
+#  LIBRARIES vtr_lite
 #  CATKIN_DEPENDS cv_bridge geometry_msgs image_transport nav_msgs roscpp rospy std_msgs
 #  DEPENDS system_lib
 )
@@ -130,7 +130,7 @@ include_directories(
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/topo_vtr.cpp
+#   src/${PROJECT_NAME}/vtr_lite.cpp
 # )
 
 ## Add cmake target dependencies of the library
@@ -141,10 +141,14 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(odom_monitor_node src/odom_monitor.cpp)
+add_executable(mapper src/mapper.cpp)
 
 add_dependencies(odom_monitor_node ${PROJECT_NAME}_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
+add_dependencies(mapper ${PROJECT_NAME}_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
 
 target_link_libraries(odom_monitor_node ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
+target_link_libraries(mapper ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
+
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -157,7 +161,7 @@ target_link_libraries(odom_monitor_node ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 
 ## Specify libraries to link a library or executable target against
 # target_link_libraries(${PROJECT_NAME}_node
-#   ${catkiodom_monitor_noden_LIBRARIES}
+#   ${catkin_LIBRARIES}
 # )
 
 #############
@@ -207,7 +211,7 @@ target_link_libraries(odom_monitor_node ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_topo_vtr.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_vtr_lite.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()
