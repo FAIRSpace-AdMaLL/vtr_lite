@@ -142,12 +142,15 @@ include_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(odom_monitor_node src/odom_monitor.cpp)
 add_executable(mapper src/mapper.cpp)
+add_executable(navigator src/navigator.cpp)
 
 add_dependencies(odom_monitor_node ${PROJECT_NAME}_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
 add_dependencies(mapper ${PROJECT_NAME}_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
+add_dependencies(navigator ${PROJECT_NAME}_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
 
 target_link_libraries(odom_monitor_node ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 target_link_libraries(mapper ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
+target_link_libraries(navigator ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the

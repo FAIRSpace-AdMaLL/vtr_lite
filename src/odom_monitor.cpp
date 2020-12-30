@@ -8,7 +8,8 @@
 
 #include <vtr_lite/SetDistance.h>
 
-class OdomMonitor : public ParamSever {
+class OdomMonitor : public ParamSever
+{
 
 private:
     ros::Subscriber set_dist_sub;
@@ -25,13 +26,12 @@ private:
     std_msgs::Float32 dist_msg;
 
 public:
-
-    OdomMonitor (ros::NodeHandle *nh) 
+    OdomMonitor(ros::NodeHandle *nh)
     {
         /* initiate service */
         set_dist_srv = nh->advertiseService(SET_DIST_SERVER, &OdomMonitor::setDistance, this);
-        odom_sub     = nh->subscribe<nav_msgs::Odometry>(ODOM_TOPIC, 10, boost::bind(&OdomMonitor::odomCallBack, this, _1));
-        dist_pub     = nh->advertise<std_msgs::Float32>(DIST_TOPIC, 1);
+        odom_sub = nh->subscribe<nav_msgs::Odometry>(ODOM_TOPIC, 10, boost::bind(&OdomMonitor::odomCallBack, this, _1));
+        dist_pub = nh->advertise<std_msgs::Float32>(DIST_TOPIC, 1);
     }
 
     void setDistance(const std_msgs::Float32::ConstPtr &dist_msg);
@@ -42,23 +42,24 @@ public:
 /* service for set/reset the distance */
 
 bool OdomMonitor::setDistance(vtr_lite::SetDistance::Request &req, vtr_lite::SetDistance::Response &res)
-{   
-	res.distance = req.distance;
-	total_dist = req.distance;
-	last_x = current_x;
-	last_y = current_y;
+{
+    res.distance = req.distance;
+    total_dist = req.distance;
+    last_x = current_x;
+    last_y = current_y;
 
-	ROS_INFO("Setting current travelled distance to %.3f",(float)req.distance);
-    
-	dist_msg.data = total_dist;
-	dist_pub.publish(dist_msg);
-	return true;
+    ROS_INFO("Setting current travelled distance to %.3f", (float)req.distance);
+
+    dist_msg.data = total_dist;
+    dist_pub.publish(dist_msg);
+    return true;
 }
 
-
-void OdomMonitor::odomCallBack(const nav_msgs::Odometry::ConstPtr &odom_msg) {
+void OdomMonitor::odomCallBack(const nav_msgs::Odometry::ConstPtr &odom_msg)
+{
     /*if last_x and last_y are not initialized*/
-    if (last_x == FLT_MAX && last_y == FLT_MAX){
+    if (last_x == FLT_MAX && last_y == FLT_MAX)
+    {
         last_x = odom_msg->pose.pose.position.x;
         last_y = odom_msg->pose.pose.position.y;
     }
@@ -79,7 +80,7 @@ void OdomMonitor::odomCallBack(const nav_msgs::Odometry::ConstPtr &odom_msg) {
     dist_pub.publish(dist_msg);
 }
 
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
     ros::init(argc, argv, "vtr_odom_monitor");
 
@@ -92,4 +93,3 @@ int main(int argc, char** argv)
 
     return 0;
 }
-

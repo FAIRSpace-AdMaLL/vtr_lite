@@ -6,10 +6,15 @@
 
 #include <std_msgs/Header.h>
 #include <std_msgs/Float32.h>
-#include <std_msgs/Float64MultiArray.h>
+#include <sensor_msgs/JointState.h>
 #include <nav_msgs/Odometry.h>
+#include <sensor_msgs/Joy.h>
+#include <geometry_msgs/Twist.h>
 
 #include <opencv/cv.h>
+#include <image_transport/image_transport.h>
+#include <cv_bridge/cv_bridge.h>
+#include <sensor_msgs/image_encodings.h>
 
 #include <vector>
 #include <cmath>
@@ -23,7 +28,8 @@
 
 using namespace std;
 
-class ParamSever {
+class ParamSever
+{
 
 public:
     ros::NodeHandle nh;
@@ -48,11 +54,14 @@ public:
     string ODOM_TOPIC;
     string JOY_TOPIC;
 
-    string SET_DIST_SERVER = "/topo_vtr/set_distance";
-    string DIST_TOPIC = "/topo_vtr/distance";
+    string SET_DIST_SERVER = "/vtr_lite/set_distance";
+    string DIST_TOPIC = "/vtr_lite/distance";
     string VEL_CMD_TOPIC = "vel_cmd";
+    string MAP_TOPIC = "vtr_lite/map_image";
+    string MATCHER_VIS_TOPIC = "vtr_lite/matching_visualisation";
 
-    ParamSever () {
+    ParamSever()
+    {
         /* Navigation Parameters */
         // joystick axis
         nh.param<int>("axis_linear", LINEAR_AXIS, 1);
@@ -60,7 +69,7 @@ public:
         nh.param<int>("stop_button", STOP_BUTTON, 2);
         nh.param<int>("pause_button", PAUSE_BUTTON, 0);
         nh.param<int>("rotation_acceleration_button", ROT_ACC_BUTTON, 6);
-        nh.param<int>("rotation_max_button", ROT_MAX_BUTTON,7);
+        nh.param<int>("rotation_max_button", ROT_MAX_BUTTON, 7);
 
         // map parameters
         nh.param<float>("topological_map_interval", TOPO_INTERVAL, 0.5);
@@ -77,4 +86,3 @@ public:
         nh.param<std::string>("topo_vtr/joy_topic", JOY_TOPIC, "/joy");
     }
 };
-
