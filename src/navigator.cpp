@@ -4,14 +4,18 @@
 
 #include "param.h"
 
-#include <vtr_lite/PathProfile.h>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+
 #include <vtr_lite/SetDistance.h>
+#include <vtr_lite/NNImageMatching.h>
 
 using namespace std;
 using namespace cv;
 
 typedef enum
 {
+    PREPARING,
     PAUSED,
     NAVIGATING,
     COMPLETED
@@ -22,6 +26,7 @@ class Navigator : public ParamSever
 private:
     /* Service for set/reset distance */
     ros::ServiceClient dist_client;
+    ros::ServiceClient matcher_client;
     vtr_lite::SetDistance dist_srv;
 
     /* Subscibers and publishers */
@@ -60,6 +65,13 @@ private:
     ENAVIGATINGState state;
     geometry_msgs::Twist twist;
 
+    vector<int> differences;
+    vector<int> histogram;
+
+    float visual_offset;
+    float last_visual_offset;
+    float error_accumlation;
+
 public:
     string map_name;
 
@@ -68,6 +80,8 @@ public:
     {
         /* Initiate distance service client */
         dist_client = nh->serviceClient<vtr_lite::SetDistance>(SET_DIST_SERVER);
+        matcher_client = nh->serviceClient<vtr_lite::NNImageMatching>(NN_MATCHER_SERVER);
+
         image_transport::ImageTransport img_trans(*nh);
 
         /* initiate service */
@@ -84,6 +98,7 @@ public:
     void imageCallBack(const sensor_msgs::ImageConstPtr &img_msg);
     void initializeNav();
     void loadMap();
+    float PID(float error, float last_error);
 
     template <class T>
     T f_min_max(T x, T min, T max) { return fmin(fmax(x, min), max); }
@@ -117,6 +132,7 @@ void Navigator::initializeNav()
 {
     event_idx = 0;
     last_map_img_idx = -1;
+    error_accumlation = 0; // Reseting the PID integral at the start of navigation
 
     /* reset distance using service*/
     dist_srv.request.distance = dist_travelled = 0;
@@ -124,7 +140,7 @@ void Navigator::initializeNav()
     if (!dist_client.call(dist_srv))
         ROS_ERROR("Failed to call service SetDistance provided by odometry_monitor node!");
 
-    state = NAVIGATING;
+    state = PREPARING;
 }
 
 /* load map */
@@ -162,7 +178,7 @@ void Navigator::loadMap()
 
     ifstream in_file;
     in_file.open(image_file_name, ios::binary);
-    Mat img_i = Mat::zeros(image_size[0], image_size[1], CV_8UC3);
+    Mat img_i = Mat::zeros(image_size[0], image_size[1], CV_8UC1);
 
     for (int num = 0; num < num_img; num++)
     {
@@ -172,12 +188,13 @@ void Navigator::loadMap()
         images_map.push_back(img_i.clone());
     }
     ROS_INFO("Done!");
+    state = NAVIGATING;
 }
 
 // joystick dcallback
 void Navigator::joyCallBack(const sensor_msgs::Joy::ConstPtr &joy)
 {
-    state = NAVIGATING;
+    //state = NAVIGATING;
     // pause or stop
     if (joy->buttons[PAUSE_BUTTON])
         state = PAUSED;
@@ -188,17 +205,87 @@ void Navigator::joyCallBack(const sensor_msgs::Joy::ConstPtr &joy)
 // image call back function
 void Navigator::imageCallBack(const sensor_msgs::ImageConstPtr &img_msg)
 {
-    cv_bridge::CvImagePtr cv_ptr;
-    try
+    if (state == NAVIGATING)
     {
-        cv_ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8);
+        cv_bridge::CvImagePtr cv_ptr;
+        try
+        {
+            cv_ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::MONO8);
+        }
+        catch (cv_bridge::Exception &e)
+        {
+            ROS_ERROR("cv_bridge exception: %s", e.what());
+            return;
+        }
+        current_img = cv_ptr->image;
+
+        if(IMG_RESIZE_FACTOR != -1) {
+            resize(current_img, current_img, cv::Size(), IMG_RESIZE_FACTOR, IMG_RESIZE_FACTOR);
+        }
+
+        vtr_lite::NNImageMatching srv;
+        srv.request.image_camera = *(cv_bridge::CvImage(std_msgs::Header(), "mono8", current_img).toImageMsg());
+        // imwrite("/home/jaguar/maps/currentImage.jpg", current_img);
+        srv.request.image_map = *(cv_bridge::CvImage(std_msgs::Header(), "mono8", map_img).toImageMsg());
+
+        // call feature maching service
+        if (!matcher_client.call(srv)) {
+            ROS_ERROR("Failed to call service NN Matcher.");
+            return;
+        }
+
+        int num_bins = srv.response.differences.size();
+        int num_matches = srv.response.differences.size();
+        int granularity = 20;
+
+        differences.resize(0);
+        histogram.resize(0);
+
+        for (int i = 0; i < num_bins; i++)
+            histogram.push_back(0);
+
+        for (int i = 0; i < srv.response.differences.size(); i++)
+            differences.push_back(int(srv.response.differences[i]));
+
+        /*building histogram*/
+        for (int i = 0; i < num_matches; i++)
+        {
+            int index = (differences[i] + granularity / 2) / granularity + num_bins / 2;
+
+            if (index >= 0 && index < num_bins)
+                histogram[index]++;
+        }
+
+        int num_inliner = 0;
+
+        int max_bin = distance(histogram.begin(), max_element(histogram.begin(), histogram.end()));
+        float max_bin_rot = (max_bin - num_bins / 2) * granularity;
+
+        float difference = 0;
+        int count = 0;
+        /*histogram printing*/
+        for (vector<int>::const_iterator it = histogram.begin(); it != histogram.end(); ++it)
+        {
+            cout << *it << " ";
+            if (abs(*it - max_bin_rot) < granularity)
+            {
+                difference += *it;
+                count++;
+            }
+        }
+        cout << endl;
+
+        ROS_ERROR("max_bin_rot %f", max_bin_rot);
+        ROS_ERROR("difference %f", difference);
+        ROS_ERROR("count %i", count);
+
+        visual_offset = difference / count; // calculate the mean value within the max bin (2x)
+
+        float visual_offset_raw = visual_offset;
+        visual_offset = PID(visual_offset, last_visual_offset);
+        last_visual_offset = visual_offset;
+        ROS_ERROR("PID control, visual offset before %f after %f", visual_offset_raw, visual_offset);
     }
-    catch (cv_bridge::Exception &e)
-    {
-        ROS_ERROR("cv_bridge exception: %s", e.what());
-        return;
-    }
-    current_img = cv_ptr->image;
 }
 
 void Navigator::distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg)
@@ -214,13 +301,14 @@ void Navigator::distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg)
         if (map_img_idx > -1 && map_img_idx != last_map_img_idx)
         {
             map_img = images_map[map_img_idx];
+            // imwrite("/home/jaguar/maps/mapImage.jpg", map_img);
             ROS_INFO("Load %i th image at distance %f", map_img_idx, dist_travelled);
 
             /*if someone listens, then publish loaded image too*/
             if (map_pub.getNumSubscribers() > 0)
             {
                 std_msgs::Header header;
-                cv_bridge::CvImage bridge(header, sensor_msgs::image_encodings::BGR8, map_img);
+                cv_bridge::CvImage bridge(header, sensor_msgs::image_encodings::MONO8, map_img);
                 map_pub.publish(bridge.toImageMsg());
             }
         }
@@ -238,6 +326,13 @@ void Navigator::distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg)
             event_idx++;
         }
 
+        /* Visual control */
+        ROS_INFO("The visual offset %f", visual_offset);
+        ROS_INFO("The pixel-wise angular velocity gain %f", PIXEL_VEL_GAIN);
+
+        // add the visual compensation (important)
+        twist.angular.z += visual_offset * PIXEL_VEL_GAIN;
+
         if (dist_travelled >= map_dist[0])
             state = COMPLETED;
 
@@ -253,6 +348,29 @@ void Navigator::distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg)
     vel_cmd_pub.publish(twist);
 }
 
+float Navigator::PID(float error, float last_error)
+{
+    if (isnan(error))
+        error = 0;
+
+    error_accumlation += error;
+
+    float delta = error - last_error;
+
+    std_msgs::Float32 msg;
+
+    msg.data = PID_Kp * error;
+    //kp_pub.publish(msg);
+
+    msg.data = PID_Ki * error_accumlation;
+    //ki_pub.publish(msg);
+
+    //msg.data = max(min(PID_Kp*error + PID_Ki*error_accumlation + PID_Kd*delta, float(500)), float(-500));
+    //control_output.publish(msg);
+
+    return max(min(PID_Kp * error + PID_Ki * error_accumlation + PID_Kd * delta, float(500)), float(-500));
+}
+
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "vtr_navigator");
@@ -266,7 +384,7 @@ int main(int argc, char **argv)
         nav.map_name = argv[1];
     else
         ROS_ERROR("Map name is not provided!");
-    
+
     nav.initializeNav();
     nav.loadMap();
 

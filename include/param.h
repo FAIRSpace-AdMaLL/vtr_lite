@@ -49,16 +49,25 @@ public:
     int ROT_ACC_BUTTON; // in the acceleration mode,  the robot will apply the 2x max angular velocity
     int ROT_MAX_BUTTON; // in the acceleration Max mode, the robot will ignore the linear velocity (for rotation within origin)
 
+    float PIXEL_VEL_GAIN;
+
+    /* PID Control */
+    float PID_Kp, PID_Ki, PID_Kd;
+
     /* ROS Topics / Server */
     string IMAGE_TOPIC;
     string ODOM_TOPIC;
     string JOY_TOPIC;
 
     string SET_DIST_SERVER = "/vtr_lite/set_distance";
+    string NN_MATCHER_SERVER = "vtr_lite/nn_matcher";
     string DIST_TOPIC = "/vtr_lite/distance";
-    string VEL_CMD_TOPIC = "vel_cmd";
+    string VEL_CMD_TOPIC = "vtr_lite/vel_cmd";
     string MAP_TOPIC = "vtr_lite/map_image";
     string MATCHER_VIS_TOPIC = "vtr_lite/matching_visualisation";
+
+    /* Map Info */
+    float IMG_RESIZE_FACTOR = 0.5;
 
     ParamSever()
     {
@@ -80,6 +89,12 @@ public:
         nh.param<float>("min_linear_velocity", MIN_LINEAR_VEL, 0.05);
         nh.param<float>("max_linear_velocity", MAX_LINEAR_VEL, 3.0);
         nh.param<float>("max_linear_acceleration", MAX_LINEAR_ACC, 0.1);
+
+        // visual navigation
+        nh.param<float>("pixel_vel_gain", PIXEL_VEL_GAIN, 0.1);
+        nh.param<float>("PID_Kp", PID_Kp, 1.0);
+        nh.param<float>("PID_Ki", PID_Ki, 0.1);
+        nh.param<float>("PID_Kd", PID_Kd, 0.0);
 
         nh.param<std::string>("topo_vtr/image_topic", IMAGE_TOPIC, "/zed2/zed_node/rgb/image_rect_color");
         nh.param<std::string>("topo_vtr/odom_topic", ODOM_TOPIC, "/encoder_odom");

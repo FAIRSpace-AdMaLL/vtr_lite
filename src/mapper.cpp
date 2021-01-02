@@ -36,7 +36,7 @@ private:
     float angular_vel;
     float last_linear_vel;
     float last_angular_vel;
-    Mat current_image;
+    Mat current_img;
     float dist_travelled;
 
     /* map image and path profile */
@@ -119,18 +119,25 @@ void Mapper::imageCallBack(const sensor_msgs::ImageConstPtr &img_msg)
     cv_bridge::CvImagePtr cv_ptr;
     try
     {
-        cv_ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::BGR8);
+        cv_ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::MONO8);
     }
     catch (cv_bridge::Exception &e)
     {
         ROS_ERROR("cv_bridge exception: %s", e.what());
         return;
     }
-    current_image = cv_ptr->image;
+    current_img = cv_ptr->image;
 
     if (dist_travelled > image_count * TOPO_INTERVAL)
     {
-        images_map.push_back(current_image);
+        Mat map_img;
+        if(IMG_RESIZE_FACTOR == -1)
+            map_img = current_img;
+        else {
+            resize(current_img, map_img, cv::Size(), IMG_RESIZE_FACTOR, IMG_RESIZE_FACTOR);
+        }
+
+        images_map.push_back(map_img);
         images_dist.push_back(dist_travelled);
         ROS_INFO("Image %i is record at %f.", image_count, dist_travelled);
         image_count++;
@@ -156,6 +163,7 @@ void Mapper::mapping()
     state = MAPPING;
     image_count = event_count = 0;
 
+    ros::Rate rate(50);
     while (ros::ok())
     {
         if (state == MAPPING)
@@ -206,6 +214,7 @@ void Mapper::mapping()
             saveMap();
             return;
         }
+        rate.sleep();
         ros::spinOnce();
     }
 }
