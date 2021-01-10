@@ -60,6 +60,7 @@ private:
     int event_idx;
     int map_img_idx;
     int last_map_img_idx;
+    float goal_dist;
 
     /* Navigation state */
     ENAVIGATINGState state;
@@ -74,6 +75,7 @@ private:
 
 public:
     string map_name;
+    bool is_reverse = false;
 
 public:
     Navigator(ros::NodeHandle *nh)
@@ -130,17 +132,22 @@ int binarySearch(const vector<float> &array, int i, int j, float val)
 
 void Navigator::initializeNav()
 {
-    event_idx = 0;
+    event_idx = is_reverse ? num_event : 0;
+    map_img_idx = is_reverse ? num_img : 0;
+
     last_map_img_idx = -1;
     error_accumlation = 0; // Reseting the PID integral at the start of navigation
 
     /* reset distance using service*/
     dist_srv.request.distance = dist_travelled = 0;
+    goal_dist = map_dist[0];
 
     if (!dist_client.call(dist_srv))
         ROS_ERROR("Failed to call service SetDistance provided by odometry_monitor node!");
 
-    state = PREPARING;
+    ROS_INFO("Navigation Initialized: reverse mode %i, current distance: %f, goal distance %f", is_reverse, dist_travelled, goal_dist);
+
+    state = NAVIGATING;
 }
 
 /* load map */
@@ -188,7 +195,7 @@ void Navigator::loadMap()
         images_map.push_back(img_i.clone());
     }
     ROS_INFO("Done!");
-    state = NAVIGATING;
+    state = PREPARING;
 }
 
 // joystick dcallback
@@ -219,7 +226,8 @@ void Navigator::imageCallBack(const sensor_msgs::ImageConstPtr &img_msg)
         }
         current_img = cv_ptr->image;
 
-        if(IMG_RESIZE_FACTOR != -1) {
+        if (IMG_RESIZE_FACTOR != -1)
+        {
             resize(current_img, current_img, cv::Size(), IMG_RESIZE_FACTOR, IMG_RESIZE_FACTOR);
         }
 
@@ -229,7 +237,8 @@ void Navigator::imageCallBack(const sensor_msgs::ImageConstPtr &img_msg)
         srv.request.image_map = *(cv_bridge::CvImage(std_msgs::Header(), "mono8", map_img).toImageMsg());
 
         // call feature maching service
-        if (!matcher_client.call(srv)) {
+        if (!matcher_client.call(srv))
+        {
             ROS_ERROR("Failed to call service NN Matcher.");
             return;
         }
@@ -292,7 +301,7 @@ void Navigator::distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg)
 {
     if (state == NAVIGATING)
     {
-        dist_travelled = dist_msg->data;
+        is_reverse ? dist_travelled = goal_dist - dist_msg->data : dist_travelled = dist_msg->data;
 
         // Searching for the nearest map image using BinarySearch
         int map_img_idx = binarySearch(images_dist, 0, num_img - 1, dist_travelled);
@@ -313,17 +322,17 @@ void Navigator::distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg)
             }
         }
 
-        if (dist_travelled > event_dist[event_idx] && event_idx < num_event)
+        if (dist_travelled >= event_dist[event_idx] && event_idx < num_event)
         {
             twist.linear.x = twist.linear.y = twist.linear.z = 0.0;
             twist.angular.z = twist.angular.y = twist.angular.x = 0.0;
             // retrieval event velocities
-            twist.linear.x = event_linear_vel[event_idx];
+            twist.linear.x = is_reverse ? -event_linear_vel[event_idx]:event_linear_vel[event_idx]; // if reverse mode, apply inverse linear vel
             twist.angular.z = event_angular_vel[event_idx];
 
             ROS_INFO("Load %i th event at distance %f", event_idx, dist_travelled);
 
-            event_idx++;
+            is_reverse ? event_idx-- : event_idx++;
         }
 
         /* Visual control */
@@ -333,7 +342,7 @@ void Navigator::distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg)
         // add the visual compensation (important)
         twist.angular.z += visual_offset * PIXEL_VEL_GAIN;
 
-        if (dist_travelled >= map_dist[0])
+        if (dist_travelled > goal_dist)
             state = COMPLETED;
 
         last_map_img_idx = map_img_idx;
@@ -343,6 +352,7 @@ void Navigator::distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg)
     {
         twist.linear.x = twist.linear.y = twist.linear.z = 0.0;
         twist.angular.z = twist.angular.y = twist.angular.x = 0.0;
+        ROS_INFO("Navigation Task Completed!");
     }
 
     vel_cmd_pub.publish(twist);
@@ -380,16 +390,18 @@ int main(int argc, char **argv)
     ros::NodeHandle nh;
     Navigator nav = Navigator(&nh);
 
-    if (argc > 1)
+    if (argc >= 2)
         nav.map_name = argv[1];
     else
         ROS_ERROR("Map name is not provided!");
+    
+    if (argc == 3)
+        nav.is_reverse = argv[2];
 
-    nav.initializeNav();
     nav.loadMap();
+    nav.initializeNav();
 
     ros::spin();
 
-    ROS_INFO("Navigation completed.");
     return 0;
 }
