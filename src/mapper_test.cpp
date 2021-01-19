@@ -6,7 +6,6 @@
 
 #include <vtr_lite/PathProfile.h>
 #include <vtr_lite/SetDistance.h>
-#include <vtr_lite/Mapping.h>
 
 using namespace std;
 using namespace cv;
@@ -54,7 +53,7 @@ private:
     int image_count;
     int event_count;
 
-    // map name
+public:
     string map_name;
 
 public:
@@ -77,8 +76,7 @@ public:
     void distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg);
     void joyCallBack(const sensor_msgs::Joy::ConstPtr &joy);
     void imageCallBack(const sensor_msgs::ImageConstPtr &img_msg);
-    bool mapping(vtr_lite::Mapping::Request& req, vtr_lite::Mapping::Response& res);
-    void setMapName(string& file_name);
+    void mapping();
     void saveMap();
 
     template <class T>
@@ -86,9 +84,6 @@ public:
 };
 
 /* class functions */
-
-// set the name of the map
-void Mapper::setMapName(string& file_name)  {map_name = file_name;}
 
 // distance currently travelled
 void Mapper::distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg)
@@ -99,7 +94,7 @@ void Mapper::distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg)
 // joystick dcallback
 void Mapper::joyCallBack(const sensor_msgs::Joy::ConstPtr &joy)
 {
-    // state = MAPPING;
+    state = MAPPING;
     // angular velocity will increase with linear velocity
     angular_vel = MAX_ANGULAR_VEL * linear_vel * 1.0 * joy->axes[ANGULAR_AXIS];
     // accumulate the linear acceleration
@@ -133,7 +128,7 @@ void Mapper::imageCallBack(const sensor_msgs::ImageConstPtr &img_msg)
     }
     current_img = cv_ptr->image;
 
-    if (state == MAPPING && dist_travelled > image_count * TOPO_INTERVAL)
+    if (dist_travelled > image_count * TOPO_INTERVAL)
     {
         Mat map_img;
         if(IMG_RESIZE_FACTOR == -1)
@@ -150,12 +145,8 @@ void Mapper::imageCallBack(const sensor_msgs::ImageConstPtr &img_msg)
 }
 
 /* Mapping function */
-bool Mapper::mapping(vtr_lite::Mapping::Request& req, vtr_lite::Mapping::Response& res)
+void Mapper::mapping()
 {
-    // set the name of the map
-    setMapName(req.map_name);
-    res.status = false;
-
     /* reset distance using service*/
     dist_srv.request.distance = dist_travelled = 0;
 
@@ -173,7 +164,7 @@ bool Mapper::mapping(vtr_lite::Mapping::Request& req, vtr_lite::Mapping::Respons
     image_count = event_count = 0;
 
     ros::Rate rate(50);
-    while (!ros::isShuttingDown())
+    while (ros::ok())
     {
         if (state == MAPPING)
         {
@@ -219,15 +210,13 @@ bool Mapper::mapping(vtr_lite::Mapping::Request& req, vtr_lite::Mapping::Respons
         /*on preempt request end mapping and save current map */
         if (state == COMPLETED)
         {
-            ROS_INFO("Mapping completed, flushing map.");
+            ROS_INFO("Map complete, flushing maps.");
             saveMap();
-            res.status = true;
-            return true;
+            return;
         }
         rate.sleep();
         ros::spinOnce();
     }
-    return false;
 }
 
 void Mapper::saveMap()
@@ -265,13 +254,16 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "vtr_mapper");
 
-    ROS_INFO("Mapping Server started.");
+    ROS_INFO("Mapping started.");
 
     ros::NodeHandle nh;
     Mapper m = Mapper(&nh);
+    if (argc > 0)
+        m.map_name = argv[1];
+    else
+        m.map_name = "tmp";
+    m.mapping();
 
-    ros::ServiceServer ss = nh.advertiseService("vtr_lite/mapper", &Mapper::mapping, &m);
-    ros::spin();
-
+    ROS_INFO("Mapping completed.");
     return 0;
 }

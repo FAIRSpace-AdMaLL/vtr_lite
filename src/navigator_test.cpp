@@ -9,7 +9,6 @@
 
 #include <vtr_lite/SetDistance.h>
 #include <vtr_lite/NNImageMatching.h>
-#include <vtr_lite/Navigation.h>
 
 using namespace std;
 using namespace cv;
@@ -75,6 +74,7 @@ private:
     float error_accumlation;
 
 public:
+    string map_name;
     bool is_reverse = false;
 
 public:
@@ -98,8 +98,8 @@ public:
     void distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg);
     void joyCallBack(const sensor_msgs::Joy::ConstPtr &joy);
     void imageCallBack(const sensor_msgs::ImageConstPtr &img_msg);
-    bool navigate(vtr_lite::Navigation::Request& req, vtr_lite::Navigation::Response& res);
-    void loadMap(const string map_name);
+    void initializeNav();
+    void loadMap();
     float PID(float error, float last_error);
 
     template <class T>
@@ -129,14 +129,9 @@ int binarySearch(const vector<float> &array, int i, int j, float val)
 }
 
 /* class functions */
-bool Navigator::navigate(vtr_lite::Navigation::Request& req, vtr_lite::Navigation::Response& res)
-{
-    // load the map
-    loadMap(req.map_name);
-    // set the reverse mode or not
-    is_reverse = req.reverse;
-    res.status = false;
 
+void Navigator::initializeNav()
+{
     event_idx = is_reverse ? num_event : 0;
     map_img_idx = is_reverse ? num_img : 0;
 
@@ -153,26 +148,10 @@ bool Navigator::navigate(vtr_lite::Navigation::Request& req, vtr_lite::Navigatio
     ROS_INFO("Navigation Initialized: reverse mode %i, current distance: %f, goal distance %f", is_reverse, dist_travelled, goal_dist);
 
     state = NAVIGATING;
-
-    ros::Rate rate(50);
-
-    while(!ros::isShuttingDown())
-    {
-        if(state == COMPLETED)
-        {
-            res.status = true;
-            return true;
-        }
-
-        rate.sleep();
-        ros::spinOnce();
-    }
-
-    return false;
 }
 
 /* load map */
-void Navigator::loadMap(const string map_name)
+void Navigator::loadMap()
 {
     // load path profile
     string path_file_name = FOLDER + "/" + map_name + ".ymal";
@@ -363,7 +342,7 @@ void Navigator::distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg)
         // add the visual compensation (important)
         twist.angular.z += visual_offset * PIXEL_VEL_GAIN;
 
-        if ((!is_reverse & dist_travelled > goal_dist) || (is_reverse & dist_travelled <= 0))
+        if (dist_travelled > goal_dist)
             state = COMPLETED;
 
         last_map_img_idx = map_img_idx;
@@ -406,12 +385,22 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "vtr_navigator");
 
-    ROS_INFO("Navigation Server started.");
+    ROS_INFO("Navigation started.");
 
     ros::NodeHandle nh;
     Navigator nav = Navigator(&nh);
 
-    ros::ServiceServer ss = nh.advertiseService("vtr_lite/navigator", &Navigator::navigate, &nav);
+    if (argc >= 2)
+        nav.map_name = argv[1];
+    else
+        ROS_ERROR("Map name is not provided!");
+    
+    if (argc == 3)
+        nav.is_reverse = argv[2];
+
+    nav.loadMap();
+    nav.initializeNav();
+
     ros::spin();
 
     return 0;

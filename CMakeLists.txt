@@ -64,6 +64,8 @@ add_service_files(
         FILES
         SetDistance.srv
         NNImageMatching.srv
+	Mapping.srv
+	Navigation.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -140,15 +142,15 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(odom_monitor_node src/odom_monitor.cpp)
+add_executable(odom_monitor src/odom_monitor.cpp)
 add_executable(mapper src/mapper.cpp)
 add_executable(navigator src/navigator.cpp)
 
-add_dependencies(odom_monitor_node ${PROJECT_NAME}_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
+add_dependencies(odom_monitor ${PROJECT_NAME}_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
 add_dependencies(mapper ${PROJECT_NAME}_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
 add_dependencies(navigator ${PROJECT_NAME}_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
 
-target_link_libraries(odom_monitor_node ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
+target_link_libraries(odom_monitor ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 target_link_libraries(mapper ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 target_link_libraries(navigator ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 
@@ -182,7 +184,7 @@ target_link_libraries(navigator ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 # )
 
 ## Mark executables for installation
-## See httpodom_monitor_node://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
+## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
 # install(TARGETS ${PROJECT_NAME}_node
 #   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 # )
