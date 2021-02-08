@@ -1,7 +1,7 @@
 <launch>
 
-<!-- Default folder with maps-->
-
+<!-- Visualisation-->
+<node type="rviz" name="rviz" pkg="rviz" args="-d $(find vtr_lite)/rviz/vtr_lite.rviz" />
 
 <!-- Distance Measurement Node -->
 <node pkg="vtr_lite" type="odom_monitor" name="odom_monitor_node" respawn="true">
