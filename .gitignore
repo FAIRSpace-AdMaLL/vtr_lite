@@ -1,2 +1,4 @@
 ./cmake-build-debug
 ./src/models/*
+./src/nn/*
+./src/nn_models/*
