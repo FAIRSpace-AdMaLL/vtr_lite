@@ -20,6 +20,8 @@ find_package(catkin REQUIRED COMPONENTS
   actionlib
 )
 
+find_package(OpenCV REQUIRED QUIET)
+
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
