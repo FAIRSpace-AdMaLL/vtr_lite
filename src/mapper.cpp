@@ -246,7 +246,7 @@ void Mapper::saveMap()
     outfile.close();
 
     /*save the path profile as well*/
-    string path_file_name = FOLDER + "/" + map_name + ".ymal";
+    string path_file_name = FOLDER + "/" + map_name + ".yaml";
     ROS_INFO("Saving path profile to %s", path_file_name.c_str());
     FileStorage pfs(path_file_name.c_str(), FileStorage::WRITE);
     write(pfs, "map_distance", vector<float> {dist_travelled});
