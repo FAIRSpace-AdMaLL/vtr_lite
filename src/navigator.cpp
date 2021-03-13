@@ -175,7 +175,7 @@ bool Navigator::navigate(vtr_lite::Navigation::Request& req, vtr_lite::Navigatio
 void Navigator::loadMap(const string map_name)
 {
     // load path profile
-    string path_file_name = FOLDER + "/" + map_name + ".ymal";
+    string path_file_name = FOLDER + "/" + map_name + ".yaml";
     ROS_INFO("Loading path profile from %s", path_file_name.c_str());
     FileStorage fsp(path_file_name, FileStorage::READ);
 
