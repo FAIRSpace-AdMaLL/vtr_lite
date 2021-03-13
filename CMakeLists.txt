@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   sensor_msgs
   image_transport
+  eigen_conversions
   nav_msgs
   roscpp
   rospy
@@ -22,7 +23,7 @@ find_package(catkin REQUIRED COMPONENTS
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-
+find_package(Eigen3 REQUIRED COMPONENTS)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -112,10 +113,11 @@ generate_messages(
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
+INCLUDE_DIRS include
 #  LIBRARIES vtr_lite
 #  CATKIN_DEPENDS cv_bridge geometry_msgs image_transport nav_msgs roscpp rospy std_msgs
 #  DEPENDS system_lib
+DEPENDS Eigen
 )
 
 ###########
@@ -128,6 +130,7 @@ include_directories(
         include
         ${catkin_INCLUDE_DIRS}
         ${OpenCV_INCLUDE_DIRS}
+        ${EIGEN_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -142,16 +145,17 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
+
 add_executable(odom_monitor src/odom_monitor.cpp)
-add_executable(mapper src/mapper.cpp)
-add_executable(navigator src/navigator.cpp)
-
 add_dependencies(odom_monitor ${PROJECT_NAME}_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
-add_dependencies(mapper ${PROJECT_NAME}_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
-add_dependencies(navigator ${PROJECT_NAME}_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
-
 target_link_libraries(odom_monitor ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
+
+add_executable(mapper src/mapper.cpp)
+add_dependencies(mapper ${PROJECT_NAME}_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
 target_link_libraries(mapper ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
+
+add_executable(navigator src/navigator.cpp)
+add_dependencies(navigator ${PROJECT_NAME}_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
 target_link_libraries(navigator ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 
 ## Rename C++ executable without prefix

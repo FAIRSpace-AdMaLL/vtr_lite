@@ -254,7 +254,8 @@ void Navigator::imageCallBack(const sensor_msgs::ImageConstPtr &img_msg)
 
         vtr_lite::NNImageMatching srv;
         srv.request.image_camera = *(cv_bridge::CvImage(std_msgs::Header(), "mono8", current_img).toImageMsg());
-        // imwrite("/home/jaguar/maps/currentImage.jpg", current_img);
+
+        //imwrite( "/home/jaguar/maps/currentImage_"+to_string(map_img_idx) + "_" + to_string(ros::Time::now().toSec())+".png", current_img);
         srv.request.image_map = *(cv_bridge::CvImage(std_msgs::Header(), "mono8", map_img).toImageMsg());
 
         // call feature maching service
@@ -325,13 +326,14 @@ void Navigator::distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg)
         is_reverse ? dist_travelled = goal_dist - dist_msg->data : dist_travelled = dist_msg->data;
 
         // Searching for the nearest map image using BinarySearch
-        int map_img_idx = binarySearch(images_dist, 0, num_img - 1, dist_travelled);
+        map_img_idx = binarySearch(images_dist, 0, num_img - 1, dist_travelled);
 
         // and publish it
         if (map_img_idx > -1 && map_img_idx != last_map_img_idx)
         {
             map_img = images_map[map_img_idx];
-            // imwrite("/home/jaguar/maps/mapImage.jpg", map_img);
+            //imwrite( "/home/jaguar/maps/mapImage_"+to_string(map_img_idx)+".png", map_img);
+
             ROS_INFO("Load %i th image at distance %f", map_img_idx, dist_travelled);
 
             /*if someone listens, then publish loaded image too*/

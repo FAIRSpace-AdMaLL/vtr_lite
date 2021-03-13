@@ -8,6 +8,8 @@
 #include <vtr_lite/SetDistance.h>
 #include <vtr_lite/Mapping.h>
 
+#include <geometry_msgs/PoseStamped.h>
+
 using namespace std;
 using namespace cv;
 
@@ -27,6 +29,7 @@ private:
 
     /* Subscibers and publishers */
     ros::Subscriber dist_sub;
+    ros::Subscriber robot_pose_sub;
     image_transport::Subscriber image_sub;
     ros::Subscriber joy_sub;
     ros::Publisher vel_cmd_pub;
@@ -41,7 +44,9 @@ private:
     float dist_travelled;
 
     /* map image and path profile */
-    vector<Mat> images_map;
+    vector<Mat> map_images;
+    geometry_msgs::Pose robot_pose;
+    vector<double> map_poses;
     vector<float> images_dist;
     vector<float> event_dist;
     vector<float> event_linear_vel;
@@ -65,16 +70,22 @@ public:
         image_transport::ImageTransport img_trans(*nh);
 
         /* initiate service */
-        cout << JOY_TOPIC << endl;
-        cout << DIST_TOPIC << endl;
+        ROS_INFO("subscribe to %s", JOY_TOPIC.c_str());
+        ROS_INFO("subscribe to %s", DIST_TOPIC.c_str());
+        ROS_INFO("subscribe to %s", IMAGE_TOPIC.c_str());
+        ROS_INFO("subscribe to %s", ROBOT_POSE_TOPIC.c_str());
+        ROS_INFO("subscribe to %s", VEL_CMD_TOPIC.c_str());
 
         dist_sub = nh->subscribe<std_msgs::Float32>(DIST_TOPIC, 1, boost::bind(&Mapper::distanceCallBack, this, _1));
+        robot_pose_sub = nh->subscribe<geometry_msgs::PoseStamped>(ROBOT_POSE_TOPIC, 1, boost::bind(&Mapper::robotPoseCallBack, this, _1));
         joy_sub = nh->subscribe<sensor_msgs::Joy>(JOY_TOPIC, 1, boost::bind(&Mapper::joyCallBack, this, _1));
         image_sub = img_trans.subscribe(IMAGE_TOPIC, 1, boost::bind(&Mapper::imageCallBack, this, _1));
         vel_cmd_pub = nh->advertise<geometry_msgs::Twist>(VEL_CMD_TOPIC, 1);
+
     }
 
     void distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg);
+    void robotPoseCallBack(const geometry_msgs::PoseStamped::ConstPtr &pose_msg);
     void joyCallBack(const sensor_msgs::Joy::ConstPtr &joy);
     void imageCallBack(const sensor_msgs::ImageConstPtr &img_msg);
     bool mapping(vtr_lite::Mapping::Request& req, vtr_lite::Mapping::Response& res);
@@ -91,10 +102,8 @@ public:
 void Mapper::setMapName(string& file_name)  {map_name = file_name;}
 
 // distance currently travelled
-void Mapper::distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg)
-{
-    dist_travelled = dist_msg->data;
-}
+void Mapper::distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg) {dist_travelled = dist_msg->data;}
+void Mapper::robotPoseCallBack(const geometry_msgs::PoseStamped::ConstPtr &pose_msg) {robot_pose = pose_msg->pose;}
 
 // joystick dcallback
 void Mapper::joyCallBack(const sensor_msgs::Joy::ConstPtr &joy)
@@ -142,7 +151,9 @@ void Mapper::imageCallBack(const sensor_msgs::ImageConstPtr &img_msg)
             resize(current_img, map_img, cv::Size(), IMG_RESIZE_FACTOR, IMG_RESIZE_FACTOR);
         }
 
-        images_map.push_back(map_img);
+        map_images.push_back(map_img);
+        map_poses.insert(map_poses.end(), {robot_pose.position.x,robot_pose.position.y,robot_pose.position.z,robot_pose.orientation.x,robot_pose.orientation.y,robot_pose.orientation.z,robot_pose.orientation.w});
+        
         images_dist.push_back(dist_travelled);
         ROS_INFO("Image %i is record at %f.", image_count, dist_travelled);
         image_count++;
@@ -163,7 +174,7 @@ bool Mapper::mapping(vtr_lite::Mapping::Request& req, vtr_lite::Mapping::Respons
         ROS_ERROR("Failed to call service SetDistance provided by odometry_monitor node!");
 
     // map info
-    images_map.clear();
+    map_images.clear();
     images_dist.clear();
     event_dist.clear();
     event_linear_vel.clear();
@@ -193,10 +204,12 @@ bool Mapper::mapping(vtr_lite::Mapping::Request& req, vtr_lite::Mapping::Respons
         if (state == MAPPING)
         {
             /* saving path profile */
-            if (last_linear_vel != linear_vel || last_angular_vel != angular_vel || (angular_vel != 0 & ros::Time::now() > last_event_time + ros::Duration(0.1)))
+            if (abs(last_linear_vel-linear_vel)>0.001 || abs(last_angular_vel-angular_vel)>0.001 || (abs(angular_vel)>=0.001 & ros::Time::now() > last_event_time + ros::Duration(0.1)))
             {
-                if (angular_vel != 0 & ros::Time::now() > last_event_time + ros::Duration(0.1))
-                    ROS_DEBUG("Robot is turing.");
+
+                if(abs(last_linear_vel-linear_vel)>0.001)       ROS_DEBUG("Recording - Accelerating/Decelerating.");
+                if(abs(last_angular_vel-angular_vel)>0.001)         ROS_DEBUG("Recording - Turning");
+                if(abs(angular_vel)>=0.001 & ros::Time::now() > last_event_time + ros::Duration(0.1))      ROS_DEBUG("Recording - Keep Turning more than 0.1s");
 
                 if (fabs(linear_vel) > MIN_LINEAR_VEL)
                 {
@@ -238,10 +251,10 @@ void Mapper::saveMap()
     outfile.open(image_file_name, ios::binary);
     ROS_INFO("Saving images map to %s", image_file_name.c_str());
 
-    for (int i = 0; i < images_map.size(); i++)
+    for (int i = 0; i < map_images.size(); i++)
     {
-        for (int r = 0; r < images_map[i].rows; r++)
-            outfile.write(reinterpret_cast<const char *>(images_map[i].ptr(r)), images_map[i].cols * images_map[i].elemSize());
+        for (int r = 0; r < map_images[i].rows; r++)
+            outfile.write(reinterpret_cast<const char *>(map_images[i].ptr(r)), map_images[i].cols * map_images[i].elemSize());
     }
     outfile.close();
 
@@ -250,11 +263,13 @@ void Mapper::saveMap()
     ROS_INFO("Saving path profile to %s", path_file_name.c_str());
     FileStorage pfs(path_file_name.c_str(), FileStorage::WRITE);
     write(pfs, "map_distance", vector<float> {dist_travelled});
-    write(pfs, "image_size", vector<int>({images_map[0].rows, images_map[0].cols}));
+    write(pfs, "image_size", vector<int>({map_images[0].rows, map_images[0].cols}));
     write(pfs, "image_distance", images_dist);
     write(pfs, "event_distance", event_dist);
     write(pfs, "linear_vel", event_linear_vel);
     write(pfs, "angular_vel", event_angular_vel);
+    // if save the map keyframe poses
+    //write(pfs, "map_pose", map_poses);
 
     ROS_INFO("Done!");
 

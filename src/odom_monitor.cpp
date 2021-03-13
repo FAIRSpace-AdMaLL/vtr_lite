@@ -5,8 +5,11 @@
 #include "param.h"
 #include <sensor_msgs/JointState.h>
 #include <nav_msgs/Odometry.h>
-
+#include <geometry_msgs/PoseStamped.h>
 #include <vtr_lite/SetDistance.h>
+
+#include "eigen_conversions/eigen_msg.h"
+#include <Eigen/Dense>
 
 class OdomMonitor : public ParamSever
 {
@@ -15,6 +18,7 @@ private:
     ros::Subscriber set_dist_sub;
     ros::Publisher dist_pub;
     ros::Subscriber odom_sub;
+    ros::Publisher robot_pose_pub;
 
     ros::ServiceServer set_dist_srv;
 
@@ -25,6 +29,9 @@ private:
     float current_y;
     std_msgs::Float32 dist_msg;
 
+    Eigen::Affine3d init_pose = Eigen::Affine3d::Identity();;
+    Eigen::Affine3d curr_pose, odom_pose;
+
 public:
     OdomMonitor(ros::NodeHandle *nh)
     {
@@ -32,6 +39,7 @@ public:
         set_dist_srv = nh->advertiseService(SET_DIST_SERVER, &OdomMonitor::setDistance, this);
         odom_sub = nh->subscribe<nav_msgs::Odometry>(ODOM_TOPIC, 10, boost::bind(&OdomMonitor::odomCallBack, this, _1));
         dist_pub = nh->advertise<std_msgs::Float32>(DIST_TOPIC, 1);
+        robot_pose_pub = nh->advertise<geometry_msgs::PoseStamped>(ROBOT_POSE_TOPIC, 1);
     }
 
     void setDistance(const std_msgs::Float32::ConstPtr &dist_msg);
@@ -52,6 +60,10 @@ bool OdomMonitor::setDistance(vtr_lite::SetDistance::Request &req, vtr_lite::Set
 
     dist_msg.data = total_dist;
     dist_pub.publish(dist_msg);
+
+    // reset the init_pose for the map
+    init_pose = odom_pose;
+
     return true;
 }
 
@@ -78,6 +90,16 @@ void OdomMonitor::odomCallBack(const nav_msgs::Odometry::ConstPtr &odom_msg)
     // Publish the distance message
     dist_msg.data = total_dist;
     dist_pub.publish(dist_msg);
+
+    /* calculate the map poses */
+    tf::poseMsgToEigen(odom_msg->pose.pose, odom_pose);
+    curr_pose = init_pose.inverse()*odom_pose;
+
+    // Publish 
+    geometry_msgs::PoseStamped curr_pose_msg;
+    curr_pose_msg.header.frame_id = "/odom";
+    tf::poseEigenToMsg(curr_pose, curr_pose_msg.pose);
+    robot_pose_pub.publish(curr_pose_msg);
 }
 
 int main(int argc, char **argv)

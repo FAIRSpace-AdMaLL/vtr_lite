@@ -64,6 +64,7 @@ public:
     string DIST_TOPIC = "/vtr_lite/distance";
     string VEL_CMD_TOPIC = "vtr_lite/vel_cmd";
     string MAP_TOPIC = "vtr_lite/map_image";
+    string ROBOT_POSE_TOPIC = "vtr_lite/robot_pose";
     string MATCHER_VIS_TOPIC = "vtr_lite/matching_visualisation";
 
     /* Map Info */
