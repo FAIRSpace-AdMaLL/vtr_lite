@@ -62,7 +62,7 @@ public:
     string SET_DIST_SERVER = "/vtr_lite/set_distance";
     string NN_MATCHER_SERVER = "vtr_lite/nn_matcher";
     string DIST_TOPIC = "/vtr_lite/distance";
-    string VEL_CMD_TOPIC = "vtr_lite/vel_cmd";
+    string VEL_CMD_TOPIC = "/drrobot_cmd_vel";
     string MAP_TOPIC = "vtr_lite/map_image";
     string ROBOT_POSE_TOPIC = "vtr_lite/robot_pose";
     string MATCHER_VIS_TOPIC = "vtr_lite/matching_visualisation";

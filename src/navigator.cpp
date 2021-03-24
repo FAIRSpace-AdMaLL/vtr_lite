@@ -371,11 +371,15 @@ void Navigator::distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg)
         last_map_img_idx = map_img_idx;
     }
 
-    if (state == COMPLETED)
+    if (state==COMPLETED || state==PAUSED)
     {
         twist.linear.x = twist.linear.y = twist.linear.z = 0.0;
         twist.angular.z = twist.angular.y = twist.angular.x = 0.0;
-        ROS_INFO("Navigation Task Completed!");
+
+        if(state==COMPLETED)
+            ROS_INFO("Navigation Task Completed!");
+        else
+            ROS_INFO("Navigation Task Paused!");
     }
 
     vel_cmd_pub.publish(twist);

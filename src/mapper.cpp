@@ -108,7 +108,7 @@ void Mapper::robotPoseCallBack(const geometry_msgs::PoseStamped::ConstPtr &pose_
 // joystick dcallback
 void Mapper::joyCallBack(const sensor_msgs::Joy::ConstPtr &joy)
 {
-    // state = MAPPING;
+    state = MAPPING;
     // angular velocity will increase with linear velocity
     angular_vel = MAX_ANGULAR_VEL * linear_vel * 1.0 * joy->axes[ANGULAR_AXIS];
     // accumulate the linear acceleration
@@ -182,6 +182,8 @@ bool Mapper::mapping(vtr_lite::Mapping::Request& req, vtr_lite::Mapping::Respons
 
     state = MAPPING;
     image_count = event_count = 0;
+    linear_vel = 0;
+    angular_vel = 0;
 
     ros::Rate rate(50);
     while (!ros::isShuttingDown())
@@ -237,6 +239,7 @@ bool Mapper::mapping(vtr_lite::Mapping::Request& req, vtr_lite::Mapping::Respons
             res.status = true;
             return true;
         }
+
         rate.sleep();
         ros::spinOnce();
     }

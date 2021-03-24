@@ -2,10 +2,12 @@
 
 
 <!-- Default folder with maps-->
-<node type="rviz" name="rviz" pkg="rviz" args="-d $(find vtr_lite)/launch/config.rviz" />
+<node type="rviz" name="rviz" pkg="rviz" args="-d $(find vtr_lite)/launch/config.rviz">
+</node>
 
 <!-- Distance Measurement Node -->
 <node pkg="vtr_lite" type="odom_monitor" name="odom_monitor_node">
+</node>
 
 <node pkg="vtr_lite" type="mapper" name="mapper_server"  output="screen" respawn="true">
 </node>
