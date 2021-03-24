@@ -113,6 +113,9 @@ void Mapper::joyCallBack(const sensor_msgs::Joy::ConstPtr &joy)
     angular_vel = MAX_ANGULAR_VEL * linear_vel * 1.0 * joy->axes[ANGULAR_AXIS];
     // accumulate the linear acceleration
     linear_acc = MAX_LINEAR_ACC * joy->axes[LINEAR_AXIS];
+
+    linear_vel += linear_acc;
+
     // two times rotation mode
     if (joy->buttons[ROT_ACC_BUTTON])
         angular_vel *= 2.0;
@@ -124,6 +127,9 @@ void Mapper::joyCallBack(const sensor_msgs::Joy::ConstPtr &joy)
         state = PAUSED;
     if (joy->buttons[STOP_BUTTON])
         state = COMPLETED;
+
+    linear_vel = f_min_max(linear_vel, -MAX_LINEAR_VEL, MAX_LINEAR_VEL);
+    angular_vel = f_min_max(angular_vel, -MAX_ANGULAR_VEL, MAX_ANGULAR_VEL);
     ROS_INFO("Joystick pressed");
 }
 
@@ -190,10 +196,6 @@ bool Mapper::mapping(vtr_lite::Mapping::Request& req, vtr_lite::Mapping::Respons
     {
         if (state == MAPPING)
         {
-            linear_vel += linear_acc;
-            linear_vel = f_min_max(linear_vel, -MAX_LINEAR_VEL, MAX_LINEAR_VEL);
-            angular_vel = f_min_max(angular_vel, -MAX_ANGULAR_VEL, MAX_ANGULAR_VEL);
-
             twist.linear.x = linear_vel;
             twist.angular.z = angular_vel;
         }
@@ -240,7 +242,7 @@ bool Mapper::mapping(vtr_lite::Mapping::Request& req, vtr_lite::Mapping::Respons
             return true;
         }
 
-        rate.sleep();
+        //rate.sleep();
         ros::spinOnce();
     }
     return false;
