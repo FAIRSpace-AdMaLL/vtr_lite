@@ -131,6 +131,9 @@ void Mapper::joyCallBack(const sensor_msgs::Joy::ConstPtr &joy)
 
     if (joy->buttons[STOP_BUTTON])
         state = COMPLETED;
+
+    linear_vel = f_min_max(linear_vel, -MAX_LINEAR_VEL, MAX_LINEAR_VEL);
+    angular_vel = f_min_max(angular_vel, -MAX_ANGULAR_VEL, MAX_ANGULAR_VEL);
     ROS_INFO("Joystick pressed");
 }
 
