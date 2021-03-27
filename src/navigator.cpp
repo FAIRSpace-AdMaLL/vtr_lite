@@ -88,7 +88,7 @@ public:
 
         /* initiate service */
         dist_sub = nh->subscribe<std_msgs::Float32>(DIST_TOPIC, 1, boost::bind(&Navigator::distanceCallBack, this, _1));
-        joy_sub = nh->subscribe<sensor_msgs::Joy>(JOY_TOPIC, 1, boost::bind(&Navigator::joyCallBack, this, _1));
+        //joy_sub = nh->subscribe<sensor_msgs::Joy>(JOY_TOPIC, 1, boost::bind(&Navigator::joyCallBack, this, _1));
         image_sub = img_trans.subscribe(IMAGE_TOPIC, 1, boost::bind(&Navigator::imageCallBack, this, _1));
         map_pub = img_trans.advertise(MAP_TOPIC, 1);
         matcher_vis_pub = img_trans.advertise(MATCHER_VIS_TOPIC, 1);
@@ -96,7 +96,7 @@ public:
     }
 
     void distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg);
-    void joyCallBack(const sensor_msgs::Joy::ConstPtr &joy);
+    //void joyCallBack(const sensor_msgs::Joy::ConstPtr &joy);
     void imageCallBack(const sensor_msgs::ImageConstPtr &img_msg);
     bool navigate(vtr_lite::Navigation::Request& req, vtr_lite::Navigation::Response& res);
     void loadMap(const string map_name);
@@ -147,6 +147,9 @@ bool Navigator::navigate(vtr_lite::Navigation::Request& req, vtr_lite::Navigatio
     dist_srv.request.distance = dist_travelled = 0;
     goal_dist = map_dist[0];
 
+    /* initialise the variables*/
+    visual_offset = 0.;
+
     if (!dist_client.call(dist_srv))
         ROS_ERROR("Failed to call service SetDistance provided by odometry_monitor node!");
 
@@ -164,7 +167,7 @@ bool Navigator::navigate(vtr_lite::Navigation::Request& req, vtr_lite::Navigatio
             return true;
         }
 
-        rate.sleep();
+        //rate.sleep();
         ros::spinOnce();
     }
 
@@ -185,6 +188,7 @@ void Navigator::loadMap(const string map_name)
     event_dist.clear();
     event_linear_vel.clear();
     event_angular_vel.clear();
+    images_map.clear();
 
     if (fsp.isOpened())
     {
@@ -210,24 +214,14 @@ void Navigator::loadMap(const string map_name)
 
     for (int num = 0; num < num_img; num++)
     {
-        for (int r = num; r < num + img_i.rows; r++)
+        for (int r = num; r < num + img_i.rows; r++) {
             in_file.read(reinterpret_cast<char *>(img_i.ptr(r - num)), img_i.cols * img_i.elemSize());
+        }
 
         images_map.push_back(img_i.clone());
     }
     ROS_INFO("Done!");
     state = PREPARING;
-}
-
-// joystick dcallback
-void Navigator::joyCallBack(const sensor_msgs::Joy::ConstPtr &joy)
-{
-    //state = NAVIGATING;
-    // pause or stop
-    if (joy->buttons[PAUSE_BUTTON])
-        state = PAUSED;
-    if (joy->buttons[STOP_BUTTON])
-        state = COMPLETED;
 }
 
 // image call back function
@@ -298,7 +292,7 @@ void Navigator::imageCallBack(const sensor_msgs::ImageConstPtr &img_msg)
         for (vector<int>::const_iterator it = histogram.begin(); it != histogram.end(); ++it)
         {
             cout << *it << " ";
-            if (abs(*it - max_bin_rot) < granularity)
+            if (fabs(*it - max_bin_rot) < granularity)
             {
                 difference += *it;
                 count++;

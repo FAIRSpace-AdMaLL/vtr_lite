@@ -6,6 +6,8 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
+        - /Image1
+        - /Image2
         - /Pose1
         - /Odometry1
       Splitter Ratio: 0.5
@@ -68,7 +70,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/Image
       Enabled: true
-      Image Topic: /zed2/zed_node/rgb/image_rect_color
+      Image Topic: /vtr_lite/map_image
       Max Value: 1
       Median window: 5
       Min Value: 0
@@ -193,5 +195,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1200
-  X: 922
-  Y: 69
+  X: 1330
+  Y: 139

@@ -81,15 +81,14 @@ public:
         joy_sub = nh->subscribe<sensor_msgs::Joy>(JOY_TOPIC, 1, boost::bind(&Mapper::joyCallBack, this, _1));
         image_sub = img_trans.subscribe(IMAGE_TOPIC, 1, boost::bind(&Mapper::imageCallBack, this, _1));
         vel_cmd_pub = nh->advertise<geometry_msgs::Twist>(VEL_CMD_TOPIC, 1);
-
     }
 
     void distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg);
     void robotPoseCallBack(const geometry_msgs::PoseStamped::ConstPtr &pose_msg);
     void joyCallBack(const sensor_msgs::Joy::ConstPtr &joy);
     void imageCallBack(const sensor_msgs::ImageConstPtr &img_msg);
-    bool mapping(vtr_lite::Mapping::Request& req, vtr_lite::Mapping::Response& res);
-    void setMapName(string& file_name);
+    bool mapping(vtr_lite::Mapping::Request &req, vtr_lite::Mapping::Response &res);
+    void setMapName(string &file_name);
     void saveMap();
 
     template <class T>
@@ -99,20 +98,25 @@ public:
 /* class functions */
 
 // set the name of the map
-void Mapper::setMapName(string& file_name)  {map_name = file_name;}
+void Mapper::setMapName(string &file_name) { map_name = file_name; }
 
 // distance currently travelled
-void Mapper::distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg) {dist_travelled = dist_msg->data;}
-void Mapper::robotPoseCallBack(const geometry_msgs::PoseStamped::ConstPtr &pose_msg) {robot_pose = pose_msg->pose;}
+void Mapper::distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg) { dist_travelled = dist_msg->data; }
+void Mapper::robotPoseCallBack(const geometry_msgs::PoseStamped::ConstPtr &pose_msg) { robot_pose = pose_msg->pose; }
 
 // joystick dcallback
 void Mapper::joyCallBack(const sensor_msgs::Joy::ConstPtr &joy)
 {
-    state = MAPPING;
     // angular velocity will increase with linear velocity
     angular_vel = MAX_ANGULAR_VEL * linear_vel * 1.0 * joy->axes[ANGULAR_AXIS];
-    // accumulate the linear acceleration
+    // define the linear acceleration
     linear_acc = MAX_LINEAR_ACC * joy->axes[LINEAR_AXIS];
+
+    // accumulate the linear acceleration
+    linear_vel += linear_acc;
+    linear_vel = f_min_max(linear_vel, -MAX_LINEAR_VEL, MAX_LINEAR_VEL);
+    angular_vel = f_min_max(angular_vel, -MAX_ANGULAR_VEL, MAX_ANGULAR_VEL);
+
     // two times rotation mode
     if (joy->buttons[ROT_ACC_BUTTON])
         angular_vel *= 2.0;
@@ -122,6 +126,9 @@ void Mapper::joyCallBack(const sensor_msgs::Joy::ConstPtr &joy)
     // pause or stop
     if (joy->buttons[PAUSE_BUTTON])
         state = PAUSED;
+    else
+        state = MAPPING;
+
     if (joy->buttons[STOP_BUTTON])
         state = COMPLETED;
     ROS_INFO("Joystick pressed");
@@ -130,38 +137,42 @@ void Mapper::joyCallBack(const sensor_msgs::Joy::ConstPtr &joy)
 // image call back function
 void Mapper::imageCallBack(const sensor_msgs::ImageConstPtr &img_msg)
 {
-    cv_bridge::CvImagePtr cv_ptr;
-    try
+    if (state == MAPPING)
     {
-        cv_ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::MONO8);
-    }
-    catch (cv_bridge::Exception &e)
-    {
-        ROS_ERROR("cv_bridge exception: %s", e.what());
-        return;
-    }
-    current_img = cv_ptr->image;
-
-    if (state == MAPPING && dist_travelled > image_count * TOPO_INTERVAL)
-    {
-        Mat map_img;
-        if(IMG_RESIZE_FACTOR == -1)
-            map_img = current_img;
-        else {
-            resize(current_img, map_img, cv::Size(), IMG_RESIZE_FACTOR, IMG_RESIZE_FACTOR);
+        cv_bridge::CvImagePtr cv_ptr;
+        try
+        {
+            cv_ptr = cv_bridge::toCvCopy(img_msg, sensor_msgs::image_encodings::MONO8);
         }
+        catch (cv_bridge::Exception &e)
+        {
+            ROS_ERROR("cv_bridge exception: %s", e.what());
+            return;
+        }
+        current_img = cv_ptr->image;
 
-        map_images.push_back(map_img);
-        map_poses.insert(map_poses.end(), {robot_pose.position.x,robot_pose.position.y,robot_pose.position.z,robot_pose.orientation.x,robot_pose.orientation.y,robot_pose.orientation.z,robot_pose.orientation.w});
-        
-        images_dist.push_back(dist_travelled);
-        ROS_INFO("Image %i is record at %f.", image_count, dist_travelled);
-        image_count++;
+        if (dist_travelled > image_count * TOPO_INTERVAL)
+        {
+            Mat map_img;
+            if (IMG_RESIZE_FACTOR == -1)
+                map_img = current_img;
+            else
+            {
+                resize(current_img, map_img, cv::Size(), IMG_RESIZE_FACTOR, IMG_RESIZE_FACTOR);
+            }
+
+            map_images.push_back(map_img);
+            map_poses.insert(map_poses.end(), {robot_pose.position.x, robot_pose.position.y, robot_pose.position.z, robot_pose.orientation.x, robot_pose.orientation.y, robot_pose.orientation.z, robot_pose.orientation.w});
+
+            images_dist.push_back(dist_travelled);
+            ROS_INFO("Image %i is record at %f.", image_count, dist_travelled);
+            image_count++;
+        }
     }
 }
 
 /* Mapping function */
-bool Mapper::mapping(vtr_lite::Mapping::Request& req, vtr_lite::Mapping::Response& res)
+bool Mapper::mapping(vtr_lite::Mapping::Request &req, vtr_lite::Mapping::Response &res)
 {
     // set the name of the map
     setMapName(req.map_name);
@@ -182,36 +193,36 @@ bool Mapper::mapping(vtr_lite::Mapping::Request& req, vtr_lite::Mapping::Respons
 
     state = MAPPING;
     image_count = event_count = 0;
-    linear_vel = 0;
-    angular_vel = 0;
+    linear_vel = 0.;
+    angular_vel = 0.;
 
     ros::Rate rate(50);
     while (!ros::isShuttingDown())
     {
         if (state == MAPPING)
         {
-            linear_vel += linear_acc;
-            linear_vel = f_min_max(linear_vel, -MAX_LINEAR_VEL, MAX_LINEAR_VEL);
-            angular_vel = f_min_max(angular_vel, -MAX_ANGULAR_VEL, MAX_ANGULAR_VEL);
-
             twist.linear.x = linear_vel;
             twist.angular.z = angular_vel;
         }
         else
         {
             twist.linear.x = twist.angular.z = 0;
+            ROS_WARN("Robot is paused.");
         }
         vel_cmd_pub.publish(twist);
 
         if (state == MAPPING)
         {
             /* saving path profile */
-            if (abs(last_linear_vel-linear_vel)>0.001 || abs(last_angular_vel-angular_vel)>0.001 || (abs(angular_vel)>=0.001 & ros::Time::now() > last_event_time + ros::Duration(0.1)))
+            if (fabs(last_linear_vel - linear_vel) > 0.001 || fabs(last_angular_vel - angular_vel) > 0.001 || (fabs(angular_vel) >= 0.001 & ros::Time::now() > last_event_time + ros::Duration(0.1)))
             {
 
-                if(abs(last_linear_vel-linear_vel)>0.001)       ROS_DEBUG("Recording - Accelerating/Decelerating.");
-                if(abs(last_angular_vel-angular_vel)>0.001)         ROS_DEBUG("Recording - Turning");
-                if(abs(angular_vel)>=0.001 & ros::Time::now() > last_event_time + ros::Duration(0.1))      ROS_DEBUG("Recording - Keep Turning more than 0.1s");
+                if (fabs(last_linear_vel - linear_vel) > 0.001)
+                    ROS_DEBUG("Recording - Accelerating/Decelerating.");
+                if (fabs(last_angular_vel - angular_vel) > 0.001)
+                    ROS_DEBUG("Recording - Turning");
+                if (fabs(angular_vel) >= 0.001 & ros::Time::now() > last_event_time + ros::Duration(0.1))
+                    ROS_DEBUG("Recording - Keep Turning more than 0.1s");
 
                 if (fabs(linear_vel) > MIN_LINEAR_VEL)
                 {
@@ -240,7 +251,7 @@ bool Mapper::mapping(vtr_lite::Mapping::Request& req, vtr_lite::Mapping::Respons
             return true;
         }
 
-        rate.sleep();
+        //rate.sleep();
         ros::spinOnce();
     }
     return false;
@@ -265,7 +276,7 @@ void Mapper::saveMap()
     string path_file_name = FOLDER + "/" + map_name + ".yaml";
     ROS_INFO("Saving path profile to %s", path_file_name.c_str());
     FileStorage pfs(path_file_name.c_str(), FileStorage::WRITE);
-    write(pfs, "map_distance", vector<float> {dist_travelled});
+    write(pfs, "map_distance", vector<float>{dist_travelled});
     write(pfs, "image_size", vector<int>({map_images[0].rows, map_images[0].cols}));
     write(pfs, "image_distance", images_dist);
     write(pfs, "event_distance", event_dist);

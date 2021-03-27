@@ -76,8 +76,8 @@ public:
         // joystick axis
         nh.param<int>("axis_linear", LINEAR_AXIS, 1);
         nh.param<int>("axis_angular", ANGULAR_AXIS, 0);
-        nh.param<int>("stop_button", STOP_BUTTON, 2);
-        nh.param<int>("pause_button", PAUSE_BUTTON, 0);
+        nh.param<int>("stop_button", STOP_BUTTON, 0);
+        nh.param<int>("pause_button", PAUSE_BUTTON, 4);
         nh.param<int>("rotation_acceleration_button", ROT_ACC_BUTTON, 6);
         nh.param<int>("rotation_max_button", ROT_MAX_BUTTON, 7);
 
