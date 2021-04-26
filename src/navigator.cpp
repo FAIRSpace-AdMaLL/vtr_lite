@@ -376,6 +376,9 @@ void Navigator::distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg)
             ROS_INFO("Navigation Task Paused!");
     }
 
+    cout << "robot state: " << state << endl;
+    cout<<"robot twist: " << twist.linear.x << endl;
+
     vel_cmd_pub.publish(twist);
 }
 

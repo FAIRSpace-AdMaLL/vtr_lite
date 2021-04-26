@@ -74,13 +74,13 @@ public:
         ROS_INFO("subscribe to %s", DIST_TOPIC.c_str());
         ROS_INFO("subscribe to %s", IMAGE_TOPIC.c_str());
         ROS_INFO("subscribe to %s", ROBOT_POSE_TOPIC.c_str());
-        ROS_INFO("subscribe to %s", VEL_CMD_TOPIC.c_str());
+        ROS_INFO("subscribe to %s", ROBOT_VEL_TOPIC.c_str());
 
         dist_sub = nh->subscribe<std_msgs::Float32>(DIST_TOPIC, 1, boost::bind(&Mapper::distanceCallBack, this, _1));
         robot_pose_sub = nh->subscribe<geometry_msgs::PoseStamped>(ROBOT_POSE_TOPIC, 1, boost::bind(&Mapper::robotPoseCallBack, this, _1));
         joy_sub = nh->subscribe<sensor_msgs::Joy>(JOY_TOPIC, 1, boost::bind(&Mapper::joyCallBack, this, _1));
         image_sub = img_trans.subscribe(IMAGE_TOPIC, 1, boost::bind(&Mapper::imageCallBack, this, _1));
-        vel_cmd_pub = nh->advertise<geometry_msgs::Twist>(VEL_CMD_TOPIC, 1);
+        vel_cmd_pub = nh->advertise<geometry_msgs::Twist>(ROBOT_VEL_TOPIC, 1);
     }
 
     void distanceCallBack(const std_msgs::Float32::ConstPtr &dist_msg);

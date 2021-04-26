@@ -62,7 +62,8 @@ public:
     string SET_DIST_SERVER = "/vtr_lite/set_distance";
     string NN_MATCHER_SERVER = "vtr_lite/nn_matcher";
     string DIST_TOPIC = "/vtr_lite/distance";
-    string VEL_CMD_TOPIC = "/drrobot_cmd_vel";
+    string ROBOT_VEL_TOPIC = "/drrobot_cmd_vel";
+    string VEL_CMD_TOPIC = "/cmd";
     string MAP_TOPIC = "vtr_lite/map_image";
     string ROBOT_POSE_TOPIC = "vtr_lite/robot_pose";
     string MATCHER_VIS_TOPIC = "vtr_lite/matching_visualisation";
@@ -97,7 +98,7 @@ public:
         nh.param<float>("PID_Ki", PID_Ki, 0.1);
         nh.param<float>("PID_Kd", PID_Kd, 0.0);
 
-        nh.param<std::string>("topo_vtr/image_topic", IMAGE_TOPIC, "/zed2/zed_node/rgb/image_rect_color");
+        nh.param<std::string>("topo_vtr/image_topic", IMAGE_TOPIC, "/zed_node/rgb/image_rect_color");
         nh.param<std::string>("topo_vtr/odom_topic", ODOM_TOPIC, "/encoder_odom");
         nh.param<std::string>("topo_vtr/joy_topic", JOY_TOPIC, "/joy");
     }
